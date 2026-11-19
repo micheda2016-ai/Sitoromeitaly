@@ -1,5 +1,129 @@
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1571477781844594741/kOgNfCJ3QsdUWEyYYfyQ2tuvj71ZLS2bMbYN6gGzO7GP9SdZG4CFx3TmGhczLnQf61FH";
+const BOT_API_URL = "https://rome-italy-2-0-6foi.onrender.com/api/approva";
+const BOT_SECRET_KEY = "STAFF26ROME";
+
 export default {
   async fetch(request) {
+    const url = new URL(request.url);
+
+    // =========================================================================
+    // API INTERNA: RICEVE RICHIESTE DAL SITO E LE MANDA AL WEBHOOK DISCORD
+    // =========================================================================
+    if (request.method === "POST" && url.pathname === "/api/richiesta") {
+      try {
+        const data = await request.json();
+
+        let embed;
+        if (data.tipo === "INVESTIMENTO") {
+          embed = {
+            title: "Nuova Richiesta di Investimento (Borsa)",
+            color: 1096065,
+            fields: [
+              { name: "Discord", value: `@${data.discord}`, inline: true },
+              { name: "Roblox", value: data.roblox, inline: true },
+              { name: "Titolo Scelto", value: `${data.titoloNome} (${data.titoloId})`, inline: false },
+              { name: "Capitale Investito", value: `${Number(data.importo).toLocaleString("it-IT")} €`, inline: true },
+              { name: "Percentuale", value: `+${data.perc}% / sett.`, inline: true },
+              { name: "Accredito Settimanale Bot", value: `**+${Number(data.settimanale).toLocaleString("it-IT")} € / settimana**`, inline: false }
+            ],
+            footer: { text: "Rome Italy 2.0 [EH] • In attesa di approvazione nell'Area Staff" },
+            timestamp: new Date().toISOString()
+          };
+        } else {
+          embed = {
+            title: `Nuova Richiesta ${data.orgTipo} (Discord + Roblox + Bot)`,
+            color: data.orgTipo === "AZIENDA" ? 2450155 : 15087942,
+            fields: [
+              { name: "Capo Discord", value: `@${data.discord}`, inline: true },
+              { name: "Capo Roblox", value: data.roblox, inline: true },
+              { name: "Nome Attività / Clan", value: data.nome, inline: false },
+              { name: "Zona / Settore Roblox", value: data.zona, inline: true },
+              { name: "Setup Discord & Bot", value: data.setup, inline: false },
+              { name: "Descrizione", value: data.desc || "Nessuna descrizione aggiuntiva.", inline: false }
+            ],
+            footer: { text: "Rome Italy 2.0 [EH] • Gestione Organizzazioni" },
+            timestamp: new Date().toISOString()
+          };
+        }
+
+        await fetch(DISCORD_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: "Rome Italy 2.0 [EH] • Sistema",
+            embeds: [embed]
+          })
+        });
+
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ ok: false, error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // =========================================================================
+    // API INTERNA: APPROVAZIONE STAFF -> INVIO DIRETTO AL BOT SU RENDER + DISCORD
+    // =========================================================================
+    if (request.method === "POST" && url.pathname === "/api/approva") {
+      try {
+        const body = await request.json();
+        if (body.staffPassword !== BOT_SECRET_KEY) {
+          return new Response(JSON.stringify({ ok: false, error: "Password Staff non valida" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
+        let botOk = false;
+        let botMessage = "";
+        try {
+          const botRes = await fetch(BOT_API_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": BOT_SECRET_KEY
+            },
+            body: JSON.stringify(body.payload)
+          });
+          botOk = botRes.ok;
+          const botJson = await botRes.json().catch(() => ({}));
+          botMessage = botJson.message || "";
+        } catch (e) {
+          botMessage = "Bot su Render non raggiungibile al momento: " + e.message;
+        }
+
+        const confirmText = body.payload.azione === "ATTIVA_INVESTIMENTO"
+          ? `✅ **INVESTIMENTO APPROVATO DALLO STAFF**\nUtente: **@${body.payload.discord}** (Roblox: \`${body.payload.roblox}\`)\nTitolo: **${body.payload.titolo}** • Accredito settimanale automatico: **+${Number(body.payload.settimanale).toLocaleString("it-IT")} € / settimana**`
+          : `✅ **ORGANIZZAZIONE APPROVATA DALLO STAFF**\nNome: **${body.payload.nome}** • Capo: **@${body.payload.discord}** (Roblox: \`${body.payload.roblox}\`)`;
+
+        await fetch(DISCORD_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: "Rome Italy 2.0 [EH] • Centrale Staff",
+            content: confirmText
+          })
+        });
+
+        return new Response(JSON.stringify({ ok: true, botOk, botMessage }), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ ok: false, error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // =========================================================================
+    // PAGINA WEB PRINCIPALE (HTML + CSS + JS)
+    // =========================================================================
     const html = `<!DOCTYPE html>
 <html lang="it">
 <head>
@@ -18,6 +142,7 @@ export default {
       --green: #10b981;
       --gold: #f59e0b;
       --purple: #8b5cf6;
+      --cyan: #38bdf8;
       --text: #f8fafc;
       --muted: #94a3b8;
       --border: rgba(255, 255, 255, 0.08);
@@ -31,7 +156,6 @@ export default {
       width: 100%;
     }
 
-    /* Barra Annunci Live Staff */
     .announcement-bar {
       background: linear-gradient(90deg, rgba(230, 57, 70, 0.2), rgba(37, 99, 235, 0.2));
       border-bottom: 1px solid rgba(255, 255, 255, 0.12);
@@ -44,35 +168,32 @@ export default {
       padding: 0.2rem 0.55rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.6px;
     }
 
-    /* Navbar */
     header {
       position: sticky; top: 0; z-index: 100;
       background: rgba(6, 9, 15, 0.94); backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--border);
-      padding: 0.95rem 5%; display: flex; justify-content: space-between; align-items: center;
+      padding: 0.95rem 5%; display: flex; justify-content: space-between; align-items: center; gap: 1rem;
     }
-    .logo { font-size: 1.35rem; font-weight: 900; letter-spacing: 0.5px; display: flex; align-items: center; gap: 0.5rem; }
+    .logo { font-size: 1.3rem; font-weight: 900; letter-spacing: 0.5px; display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; }
     .logo span { color: var(--accent); }
-    nav { display: flex; align-items: center; gap: 1.15rem; }
+    nav { display: flex; align-items: center; gap: 0.95rem; flex-wrap: wrap; justify-content: flex-end; }
     nav a {
       color: var(--muted); text-decoration: none;
-      font-size: 0.88rem; font-weight: 600; transition: color 0.2s;
+      font-size: 0.84rem; font-weight: 600; transition: color 0.2s;
     }
     nav a:hover { color: var(--text); }
     .nav-staff {
       background: rgba(245, 158, 11, 0.15) !important; color: var(--gold) !important;
       border: 1px solid rgba(245, 158, 11, 0.35) !important;
-      padding: 0.42rem 0.85rem; border-radius: 6px; font-size: 0.83rem;
+      padding: 0.38rem 0.8rem; border-radius: 6px; font-size: 0.82rem;
     }
     .nav-btn {
       background: #5865F2; color: #fff !important;
-      padding: 0.48rem 0.95rem; border-radius: 6px; font-size: 0.85rem;
+      padding: 0.44rem 0.9rem; border-radius: 6px; font-size: 0.83rem;
     }
-    .nav-btn:hover { opacity: 0.9; }
 
-    /* Hero */
     .hero {
-      padding: 4.8rem 5% 4.5rem; text-align: center;
+      padding: 4.5rem 5% 4.2rem; text-align: center;
       background: radial-gradient(circle at top center, #1a253a 0%, var(--bg) 72%);
       border-bottom: 1px solid var(--border);
     }
@@ -84,21 +205,19 @@ export default {
       margin-bottom: 1.2rem; border: 1px solid rgba(230, 57, 70, 0.35);
     }
     .dot { height: 8px; width: 8px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--green); }
-    .hero h1 { font-size: clamp(2.1rem, 5vw, 3.7rem); font-weight: 900; max-width: 920px; margin: 0 auto 1.1rem; line-height: 1.1; }
-    .hero p { color: var(--muted); max-width: 740px; margin: 0 auto 2.2rem; font-size: 1.1rem; }
+    .hero h1 { font-size: clamp(2.1rem, 5vw, 3.6rem); font-weight: 900; max-width: 920px; margin: 0 auto 1.1rem; line-height: 1.1; }
+    .hero p { color: var(--muted); max-width: 760px; margin: 0 auto 2.1rem; font-size: 1.08rem; }
     
-    /* Box Codice Server & Azioni */
     .action-panel {
       display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1rem;
-      margin-bottom: 3rem;
+      margin-bottom: 2.8rem;
     }
     .btn {
-      padding: 0.9rem 1.75rem; border-radius: 8px; font-weight: 700; font-size: 0.96rem;
+      padding: 0.88rem 1.7rem; border-radius: 8px; font-weight: 700; font-size: 0.95rem;
       text-decoration: none; transition: all 0.2s; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 0.5rem;
     }
     .btn:hover { transform: translateY(-2px); }
     .btn-discord { background: #5865F2; color: #fff; box-shadow: 0 4px 20px rgba(88, 101, 242, 0.35); }
-    .btn-discord:hover { background: #4752C4; }
     .btn-green { background: var(--green); color: #052e16; font-weight: 800; }
     .btn-gold { background: var(--gold); color: #1c1302; font-weight: 800; }
     .btn-purple { background: var(--purple); color: #fff; font-weight: 800; }
@@ -108,7 +227,7 @@ export default {
       padding: 0.55rem 0.7rem 0.55rem 1.2rem; border-radius: 8px;
       display: inline-flex; align-items: center; gap: 1rem;
     }
-    .code-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; font-weight: 700; display: block; text-align: left; }
+    .code-label { font-size: 0.76rem; color: var(--muted); text-transform: uppercase; font-weight: 700; display: block; text-align: left; }
     .code-value { font-family: monospace; font-size: 1.2rem; font-weight: 900; color: #fff; letter-spacing: 1px; }
     .copy-btn {
       background: var(--accent); color: #fff; border: none;
@@ -116,32 +235,31 @@ export default {
       cursor: pointer; transition: background 0.2s;
     }
 
-    /* Barra Statistiche */
     .stats-bar {
-      max-width: 1000px; margin: 0 auto;
+      max-width: 1040px; margin: 0 auto;
       display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;
-      background: rgba(16, 22, 36, 0.8); border: 1px solid var(--border);
+      background: rgba(16, 22, 36, 0.85); border: 1px solid var(--border);
       border-radius: 12px; padding: 1.3rem;
     }
-    .stat h4 { font-size: 1.45rem; font-weight: 900; color: #fff; }
+    .stat h4 { font-size: 1.4rem; font-weight: 900; color: #fff; }
     .stat span { font-size: 0.83rem; color: var(--muted); font-weight: 600; }
 
-    /* Sezioni Generali */
-    section { padding: 4.5rem 5%; max-width: 1220px; margin: 0 auto; }
-    .section-header { margin-bottom: 2.3rem; }
+    section { padding: 4.2rem 5%; max-width: 1220px; margin: 0 auto; }
+    section:nth-child(even) { background: rgba(11, 16, 27, 0.45); border-radius: 20px; }
+    .section-header { margin-bottom: 2.1rem; }
     .section-tag { color: var(--accent); font-weight: 800; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
-    .section-title { font-size: 2rem; font-weight: 900; margin: 0.25rem 0 0.5rem; }
-    .section-sub { color: var(--muted); max-width: 780px; font-size: 0.98rem; }
+    .section-title { font-size: 1.95rem; font-weight: 900; margin: 0.25rem 0 0.5rem; }
+    .section-sub { color: var(--muted); max-width: 800px; font-size: 0.97rem; }
 
-    /* Griglie & Card */
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(265px, 1fr)); gap: 1.4rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(265px, 1fr)); gap: 1.35rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.35rem; }
     .card {
       background: var(--card); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.65rem; transition: all 0.2s;
+      border-radius: 12px; padding: 1.6rem; transition: all 0.2s;
       display: flex; flex-direction: column; justify-content: space-between;
     }
     .card:hover { border-color: rgba(255, 255, 255, 0.22); background: var(--card-hover); transform: translateY(-3px); }
-    .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; gap: 0.5rem; }
+    .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; gap: 0.5rem; }
     .status-pill {
       font-size: 0.72rem; font-weight: 800; padding: 0.24rem 0.6rem; border-radius: 999px;
       text-transform: uppercase; white-space: nowrap;
@@ -150,11 +268,20 @@ export default {
     .pill-select { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
     .pill-free { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
     .pill-danger { background: rgba(230, 57, 70, 0.15); color: #ff7582; border: 1px solid rgba(230, 57, 70, 0.3); }
-    .card h3 { font-size: 1.2rem; color: #fff; }
-    .card p { color: var(--muted); font-size: 0.92rem; margin: 0.55rem 0 1.1rem; }
-    .card-footer { font-size: 0.83rem; color: #cbd5e1; font-weight: 600; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+    .pill-cyan { background: rgba(56, 189, 248, 0.15); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .card h3 { font-size: 1.18rem; color: #fff; }
+    .card p { color: var(--muted); font-size: 0.91rem; margin: 0.5rem 0 1rem; }
+    .card-footer { font-size: 0.82rem; color: #cbd5e1; font-weight: 600; border-top: 1px solid var(--border); padding-top: 0.7rem; }
 
-    /* TABELLONE QUOTAZIONI BORSA CITTADINA */
+    /* Tabella Codici Radio & Economia */
+    .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+    th, td { padding: 0.95rem 1.15rem; border-bottom: 1px solid var(--border); }
+    th { background: rgba(255, 255, 255, 0.03); color: #fff; font-weight: 800; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { color: var(--muted); }
+    td strong { color: #fff; }
+    .code-badge { font-family: monospace; background: rgba(56, 189, 248, 0.14); color: var(--cyan); padding: 0.2rem 0.5rem; border-radius: 5px; font-weight: 800; }
+
     .market-grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 1rem;
       margin-bottom: 2rem;
@@ -164,7 +291,7 @@ export default {
       border-radius: 12px; padding: 1.25rem;
     }
     .ticker-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-    .ticker-code { font-family: monospace; font-weight: 800; font-size: 0.8rem; color: #38bdf8; background: rgba(56, 189, 248, 0.12); padding: 0.2rem 0.5rem; border-radius: 5px; }
+    .ticker-code { font-family: monospace; font-weight: 800; font-size: 0.8rem; color: var(--cyan); background: rgba(56, 189, 248, 0.12); padding: 0.2rem 0.5rem; border-radius: 5px; }
     .ticker-trend { font-size: 0.8rem; font-weight: 800; }
     .trend-up { color: #34d399; }
     .trend-down { color: #f87171; }
@@ -172,7 +299,6 @@ export default {
     .ticker-price { font-size: 1.45rem; font-weight: 900; color: #fff; }
     .ticker-yield { font-size: 0.83rem; color: #34d399; font-weight: 700; margin-top: 0.25rem; }
 
-    /* MODULI & CALCOLATORI */
     .split-panel {
       background: linear-gradient(135deg, #0e1525 0%, #10192b 100%);
       border: 1px solid rgba(255, 255, 255, 0.1);
@@ -200,7 +326,7 @@ export default {
       display: flex; justify-content: space-between; align-items: center;
     }
     .selected-rate-banner span { font-size: 0.85rem; color: #bae6fd; font-weight: 600; }
-    .selected-rate-banner strong { font-size: 1.15rem; color: #38bdf8; font-weight: 900; }
+    .selected-rate-banner strong { font-size: 1.15rem; color: var(--cyan); font-weight: 900; }
 
     .min-warning {
       color: #ff7582; font-size: 0.82rem; font-weight: 700; margin-top: 0.35rem; display: none;
@@ -213,13 +339,7 @@ export default {
     }
     .payout-box span { font-size: 0.84rem; color: #a7f3d0; font-weight: 600; }
     .payout-box strong { font-size: 1.35rem; color: #34d399; font-weight: 900; }
-    .cmd-preview {
-      background: #04060a; border: 1px dashed rgba(255,255,255,0.22);
-      padding: 0.75rem; border-radius: 8px; font-family: monospace; font-size: 0.82rem;
-      color: #38bdf8; margin-top: 0.85rem; word-break: break-all;
-    }
 
-    /* Tabs Azienda / Gang */
     .org-tabs { display: flex; gap: 0.7rem; margin-bottom: 1.2rem; }
     .org-tab {
       flex: 1; padding: 0.7rem; border-radius: 8px; font-weight: 800; font-size: 0.9rem;
@@ -228,16 +348,30 @@ export default {
     .org-tab.active-biz { background: rgba(37, 99, 235, 0.2); border-color: var(--blue); color: #60a5fa; }
     .org-tab.active-gang { background: rgba(230, 57, 70, 0.2); border-color: var(--accent); color: #ff7582; }
 
-    /* Regole */
-    .rules-list { display: grid; gap: 0.95rem; }
+    .rules-list { display: grid; gap: 0.9rem; }
     .rule-item {
       background: var(--card); border-left: 4px solid var(--accent);
-      padding: 1.2rem 1.5rem; border-radius: 8px; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      padding: 1.15rem 1.45rem; border-radius: 8px; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
     }
-    .rule-item strong { display: block; margin-bottom: 0.25rem; font-size: 1.05rem; color: #fff; }
-    .rule-item span { color: var(--muted); font-size: 0.93rem; }
+    .rule-item strong { display: block; margin-bottom: 0.25rem; font-size: 1.03rem; color: #fff; }
+    .rule-item span { color: var(--muted); font-size: 0.92rem; }
 
-    /* AREA STAFF PROTETTA */
+    /* FAQ Accordion */
+    .faq-item {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      margin-bottom: 0.8rem; overflow: hidden;
+    }
+    .faq-q {
+      width: 100%; background: transparent; border: none; color: #fff;
+      padding: 1.1rem 1.35rem; text-align: left; font-size: 0.98rem; font-weight: 700;
+      cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+    }
+    .faq-q:hover { background: rgba(255, 255, 255, 0.03); }
+    .faq-a {
+      display: none; padding: 0 1.35rem 1.15rem; color: var(--muted); font-size: 0.92rem;
+      border-top: 1px solid var(--border); padding-top: 0.85rem;
+    }
+
     .staff-lock-box {
       background: linear-gradient(135deg, #161311 0%, #1f1914 100%);
       border: 1px solid rgba(245, 158, 11, 0.35);
@@ -287,7 +421,6 @@ export default {
     .btn-approve { background: var(--green); color: #052e16; }
     .btn-reject { background: var(--accent); color: #fff; }
 
-    /* Founder */
     .founder-box {
       background: linear-gradient(135deg, #101624 0%, #182136 100%);
       border: 1px solid var(--border); border-radius: 14px;
@@ -299,7 +432,6 @@ export default {
       padding: 0.2rem 0.6rem; border-radius: 6px; margin-bottom: 0.5rem;
     }
 
-    /* Footer */
     footer {
       text-align: center; padding: 2.8rem 5%; border-top: 1px solid var(--border);
       color: var(--muted); font-size: 0.9rem; margin-top: 2rem; background: var(--bg-alt);
@@ -308,7 +440,7 @@ export default {
     .footer-links a { color: #cbd5e1; text-decoration: none; font-weight: 600; }
     .footer-links a:hover { color: var(--accent); }
 
-    @media (max-width: 860px) {
+    @media (max-width: 900px) {
       nav a:not(.nav-btn):not(.nav-staff) { display: none; }
       .split-panel { grid-template-columns: 1fr; }
       .form-row-2 { grid-template-columns: 1fr; }
@@ -318,7 +450,6 @@ export default {
 <body>
   <div class="tricolore"></div>
 
-  <!-- BACHECA ANNUNCI LIVE GESTIBILE DALLO STAFF -->
   <div class="announcement-bar" id="liveAnnBar">
     <span class="ann-tag" id="liveAnnTag">COMUNICATO UFFICIALE</span>
     <span id="liveAnnText">Benvenuti su Rome Italy 2.0 [EH]! Bandi aperti per Carabinieri, Polizia di Stato, Aziende e Organizzazioni.</span>
@@ -327,11 +458,14 @@ export default {
   <header>
     <div class="logo">ROME ITALY <span>2.0 [EH]</span></div>
     <nav>
-      <a href="#quartieri">La Città</a>
+      <a href="#quartieri">Quartieri</a>
       <a href="#fazioni">Fazioni</a>
-      <a href="#investimenti">Borsa & Investimenti</a>
+      <a href="#servizi">Servizi RP</a>
+      <a href="#radio">Codici Radio</a>
+      <a href="#investimenti">Borsa</a>
       <a href="#organizzazioni">Aziende & Gang</a>
-      <a href="#regolamento">Regolamento</a>
+      <a href="#regolamento">Regole</a>
+      <a href="#faq">FAQ</a>
       <a href="#area-staff" class="nav-staff">Area Staff</a>
       <a href="https://discord.gg/BdAQwqss4K" target="_blank" class="nav-btn discord-link-target">Discord</a>
     </nav>
@@ -340,7 +474,7 @@ export default {
   <div class="hero">
     <div class="badge"><span class="dot"></span> SERVER PRIVATO ATTIVO • EMERGENCY HAMBURG ITALIANO</div>
     <h1>Il Più Realistico Server Roleplay Italiano su Emergency Hamburg</h1>
-    <p>Un ecosistema completo dove ogni azione conta su <strong>Roblox</strong> e su <strong>Discord</strong>: pattugliamenti istituzionali, Borsa cittadina con quotazioni reali, fondazione di aziende o organizzazioni criminali e trasferimenti automatici tramite Bot.</p>
+    <p>Un ecosistema completo dove ogni azione conta su <strong>Roblox</strong> e su <strong>Discord</strong>: pattugliamenti istituzionali, servizi anagrafici e bancari, Borsa cittadina con rendite settimanali sul Bot, fondazione di aziende o gang/mafie e codici operativi.</p>
     
     <div class="action-panel">
       <a href="https://discord.gg/BdAQwqss4K" target="_blank" class="btn btn-discord discord-link-target">
@@ -365,8 +499,8 @@ export default {
         <span>Investimenti & Resa Auto</span>
       </div>
       <div class="stat">
-        <h4>Discord + Roblox</h4>
-        <span>Aziende, Gang & Conti</span>
+        <h4>7.000 € / 13.000 €</h4>
+        <span>Bonus Conto & Busta Paga</span>
       </div>
       <div class="stat">
         <h4>Online 24/7</h4>
@@ -375,7 +509,7 @@ export default {
     </div>
   </div>
 
-  <!-- QUARTIERI & MAPPA OPERATIVA -->
+  <!-- QUARTIERI -->
   <section id="quartieri">
     <div class="section-header">
       <span class="section-tag">Territorio & Lore</span>
@@ -434,7 +568,7 @@ export default {
     <div class="section-header">
       <span class="section-tag">Carriere Istituzionali</span>
       <h2 class="section-title">Fazioni & Reparti Operativi</h2>
-      <p class="section-sub">Scegli il tuo percorso: difendi lo Stato in divisa con stipendio automatico oppure costruisci il tuo impero economico.</p>
+      <p class="section-sub">Scegli il tuo percorso: difendi lo Stato in divisa oppure costruisci il tuo impero economico e criminale.</p>
     </div>
     <div class="grid">
       <div class="card">
@@ -445,7 +579,7 @@ export default {
           </div>
           <p>Controllo costante del territorio, posti di blocco strategici, pattugliamento urbano e interventi rapidi su tutto il perimetro cittadino.</p>
         </div>
-        <div class="card-footer">Stipendio: Automatico su Turno Bot</div>
+        <div class="card-footer">Stipendio: Busta Paga 13.000 € / 7gg</div>
       </div>
 
       <div class="card">
@@ -456,7 +590,7 @@ export default {
           </div>
           <p>Squadra Volante, inseguimenti ad alta velocità, prevenzione crimini e supporto coordinato alle operazioni stradali.</p>
         </div>
-        <div class="card-footer">Stipendio: Automatico su Turno Bot</div>
+        <div class="card-footer">Stipendio: Busta Paga 13.000 € / 7gg</div>
       </div>
 
       <div class="card">
@@ -467,7 +601,7 @@ export default {
           </div>
           <p>Unità tattiche d'élite per situazioni ad alto rischio, liberazione ostaggi, irruzioni coordinate e scorte istituzionali.</p>
         </div>
-        <div class="card-footer">Stipendio: Indennità Operativa Extra</div>
+        <div class="card-footer">Reparto: Intervento Alto Rischio</div>
       </div>
 
       <div class="card">
@@ -483,21 +617,111 @@ export default {
     </div>
   </section>
 
-  <!-- SEZIONE BORSA & INVESTIMENTI COLLEGATI AL BOT -->
+  <!-- SERVIZI CITTADINI & BUROCRAZIA RP -->
+  <section id="servizi">
+    <div class="section-header">
+      <span class="section-tag">Sportelli & Sistema Bot Discord</span>
+      <h2 class="section-title">Servizi Cittadini, Banche & Documenti</h2>
+      <p class="section-sub">Tutto quello che puoi attivare tramite i pannelli del Bot sul server Discord di Rome Italy 2.0 [EH].</p>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <div>
+          <div class="card-top">
+            <h3>Conti Bancari & Economia</h3>
+            <span class="status-pill pill-open">Bonus 7.000 €</span>
+          </div>
+          <p>Apri il conto su Banca Sella, Poste Italiane o Intesa Sanpaolo. Gestisci saldo, depositi, prelievi, busta paga settimanale (<strong>13.000 €</strong>) e tasse (<strong>800 €</strong> ogni 7 giorni).</p>
+        </div>
+        <div class="card-footer">Comandi: /conto • /deposita • /preleva</div>
+      </div>
+
+      <div class="card">
+        <div>
+          <div class="card-top">
+            <h3>Patenti & PRA Veicoli</h3>
+            <span class="status-pill pill-select">30 Punti Iniziali</span>
+          </div>
+          <p>Richiedi la patente (<strong>A = Moto</strong>, <strong>B = Veicoli</strong>, <strong>C / D</strong>) e immatricola il tuo mezzo con targa ufficiale per guidare in regola evitando sanzioni.</p>
+        </div>
+        <div class="card-footer">Comando: /patente</div>
+      </div>
+
+      <div class="card">
+        <div>
+          <div class="card-top">
+            <h3>Cittadinanza & Porto d'Armi</h3>
+            <span class="status-pill pill-cyan">Anagrafe RP</span>
+          </div>
+          <p>Registra la tua identità RP (Nome, Cognome, Data di nascita, Sesso e Roblox) e invia richiesta motivata per il porto d'armi legale.</p>
+        </div>
+        <div class="card-footer">Approvazione: Gestita dallo Staff</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CODICI RADIO & PROCEDURE OPERATIVE -->
+  <section id="radio">
+    <div class="section-header">
+      <span class="section-tag">Comunicazioni & Ordine Pubblico</span>
+      <h2 class="section-title">Codici Radio & Procedure RP</h2>
+      <p class="section-sub">Linguaggio operativo rapido per comunicazioni chiare tra pattuglie, centrale e reparti.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Codice / Termine</th>
+            <th>Significato Operativo</th>
+            <th>Uso Consigliato</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="code-badge">10-4</span></td>
+            <td><strong>Ricevuto / Confermato</strong></td>
+            <td>Conferma rapida di un ordine o messaggio radio.</td>
+          </tr>
+          <tr>
+            <td><span class="code-badge">10-20</span></td>
+            <td><strong>Posizione Attuale</strong></td>
+            <td>Indicare il quartiere o la strada in cui ci si trova (es. EUR, Mostacciano).</td>
+          </tr>
+          <tr>
+            <td><span class="code-badge">10-80</span></td>
+            <td><strong>Inseguimento in Corso</strong></td>
+            <td>Segnalare un veicolo che non si ferma all'alt per richiedere supporto.</td>
+          </tr>
+          <tr>
+            <td><span class="code-badge">CODICE 3</span></td>
+            <td><strong>Emergenza con Sirene</strong></td>
+            <td>Intervento urgente su rapina, sparatoria o incidente grave.</td>
+          </tr>
+          <tr>
+            <td><span class="code-badge">ALT / FERMO</span></td>
+            <td><strong>Controllo Documenti & Veicolo</strong></td>
+            <td>Verifica patente, immatricolazione e comportamento RP del cittadino.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SEZIONE BORSA & INVESTIMENTI -->
   <section id="investimenti">
     <div class="section-header">
-      <span class="section-tag">Borsa & Sistema Bancario Automatizzato (Discord + Roblox + Bot)</span>
+      <span class="section-tag">Collegamento Diretto Discord + Bot Economia</span>
       <h2 class="section-title">Mercati, Quotazioni & Investimenti Bot</h2>
-      <p class="section-sub">Inserisci Nome Discord e Roblox, scegli un titolo tra quelli disponibili, visualizza la percentuale settimanale e imposta il tuo investimento (minimo <strong>10.000 €</strong>): il sito calcola subito quanto ti arriverà ogni settimana sul conto appena accettato.</p>
+      <p class="section-sub">Inserisci Nome Discord e Roblox, scegli un titolo tra quelli disponibili, visualizza la percentuale settimanale e imposta il tuo investimento (minimo <strong>10.000 €</strong>): la richiesta arriva subito su Discord e, appena accettata dallo Staff, il Bot ti accredita ogni settimana l'importo nel conto.</p>
     </div>
 
     <div class="market-grid" id="marketTickerGrid"></div>
 
     <div class="split-panel">
       <div>
-        <span class="status-pill pill-open" style="margin-bottom:0.8rem; display:inline-block;">● CALCOLO AUTOMATICO SETTIMANALE BOT</span>
+        <span class="status-pill pill-open" style="margin-bottom:0.8rem; display:inline-block;">● COLLEGATO AL BOT SU RENDER</span>
         <h3 style="font-size: 1.5rem; margin-bottom: 0.7rem;">Come funziona l'investimento (Minimo 10.000 €)</h3>
-        <p style="color: var(--muted); font-size: 0.95rem; margin-bottom: 1.2rem;">Scegli il titolo, guarda subito la sua percentuale settimanale e inserisci quanto vuoi investire (minimo <strong>10.000 €</strong>). Appena lo Staff accetta la richiesta, il Bot ti trasferisce automaticamente ogni settimana l'importo calcolato sul conto.</p>
+        <p style="color: var(--muted); font-size: 0.95rem; margin-bottom: 1.2rem;">Invii la richiesta dal modulo, arriva subito sul canale Discord dello Staff, e al clic su <strong>Accetta & Attiva Bot</strong> il tuo bot su Render riceve l'ordine di accreditare ogni settimana la rendita sul conto.</p>
         <div class="rules-list">
           <div class="rule-item" style="border-left-color: var(--green);">
             <strong>1. Nome Discord, Roblox & Scelta Titolo</strong>
@@ -508,14 +732,14 @@ export default {
             <span>Inserisci quanto vuoi investire (almeno 10.000 €): il sistema calcola in tempo reale quanto ti spetta ogni settimana.</span>
           </div>
           <div class="rule-item" style="border-left-color: var(--green);">
-            <strong>3. Trasferimento Settimanale sul Conto</strong>
-            <span>Una volta accettato dallo Staff, il Bot invia automaticamente ogni settimana la somma calcolata sul tuo conto.</span>
+            <strong>3. Invio Automatico a Discord & Bot</strong>
+            <span>Con un clic la richiesta parte verso il server Discord e, una volta accettata dallo Staff, attiva l'accredito settimanale sul tuo conto.</span>
           </div>
         </div>
       </div>
 
       <div class="form-box">
-        <h3>Simulatore & Richiesta Investimento (Min. 10.000 €)</h3>
+        <h3>Modulo Investimento Diretto (Min. 10.000 €)</h3>
         <div class="form-row-2">
           <div class="form-group">
             <label>Nome Discord Ufficiale *</label>
@@ -551,24 +775,23 @@ export default {
           <strong id="weeklyReturn">+1.400 € / sett.</strong>
         </div>
 
-        <button class="btn btn-green" style="width: 100%; justify-content: center;" onclick="submitInvestment()">
-          Invia Richiesta & Copia Comando Bot
+        <button class="btn btn-green" id="invSubmitBtn" style="width: 100%; justify-content: center;" onclick="submitInvestment()">
+          Invia Richiesta al Server & Bot
         </button>
 
-        <div class="cmd-preview" id="botCmdPreview"></div>
-        <p id="invConfirmMsg" style="font-size: 0.83rem; color: #34d399; margin-top: 0.6rem; display: none; font-weight: 700;">
-          ✓ Richiesta inviata allo Staff e comando copiato! Se accettata, riceverai ogni settimana l'importo calcolato sul conto dal Bot.
+        <p id="invConfirmMsg" style="font-size: 0.85rem; color: #34d399; margin-top: 0.75rem; display: none; font-weight: 700;">
+          ✓ Richiesta inviata in automatico al canale Discord dello Staff! Appena approvata, il Bot attiverà l'accredito settimanale sul tuo conto.
         </p>
       </div>
     </div>
   </section>
 
-  <!-- SEZIONE CREA AZIENDA O GANG / MAFIA (COMPLETA DISCORD + ROBLOX + BOT) -->
+  <!-- SEZIONE CREA AZIENDA O GANG / MAFIA -->
   <section id="organizzazioni">
     <div class="section-header">
       <span class="section-tag">Imprenditoria & Malavita • Pacchetto Completo Discord + Roblox + Bot</span>
       <h2 class="section-title">Fonda un'Azienda o un'Organizzazione (Gang / Mafia)</h2>
-      <p class="section-sub">Ogni azienda o gang/mafia registrata include sia il ruolo/struttura su <strong>Discord</strong> (canali, gradi, conto aziendale/clan sul Bot) sia l'attività operativa su <strong>Roblox (Emergency Hamburg)</strong>.</p>
+      <p class="section-sub">Ogni richiesta inviata arriva direttamente sul server Discord dello Staff per l'attivazione di ruoli, canali, conto/cassa sul Bot e zona su Roblox.</p>
     </div>
 
     <div class="split-panel">
@@ -607,42 +830,41 @@ export default {
         <div class="form-row-2">
           <div class="form-group">
             <label>Nome Discord Ufficiale (Capo) *</label>
-            <input type="text" id="orgDiscord" placeholder="es. marco_rp" oninput="updateOrgCmd()" />
+            <input type="text" id="orgDiscord" placeholder="es. marco_rp" />
           </div>
           <div class="form-group">
             <label>Username Roblox Ufficiale *</label>
-            <input type="text" id="orgRoblox" placeholder="es. MarcoITA_99" oninput="updateOrgCmd()" />
+            <input type="text" id="orgRoblox" placeholder="es. MarcoITA_99" />
           </div>
         </div>
 
         <div class="form-row-2">
           <div class="form-group">
             <label id="orgNameLabel">Nome dell'Azienda *</label>
-            <input type="text" id="orgName" placeholder="es. Roma Luxury Motors" oninput="updateOrgCmd()" />
+            <input type="text" id="orgName" placeholder="es. Roma Luxury Motors" />
           </div>
           <div class="form-group">
             <label id="orgSectorLabel">Settore / Zona su Roblox *</label>
-            <input type="text" id="orgSector" placeholder="es. Concessionaria - EUR" oninput="updateOrgCmd()" />
+            <input type="text" id="orgSector" placeholder="es. Concessionaria - EUR" />
           </div>
         </div>
 
         <div class="form-group">
           <label id="orgDiscordSetupLabel">Setup Discord & Bot (Ruoli, Canali, Conto Aziendale) *</label>
-          <input type="text" id="orgDiscordSetup" placeholder="es. Ruoli CEO/Dipendenti, canali privati, conto aziendale Bot" oninput="updateOrgCmd()" />
+          <input type="text" id="orgDiscordSetup" placeholder="es. Ruoli CEO/Dipendenti, canali privati, conto aziendale Bot" />
         </div>
 
         <div class="form-group">
           <label>Attività su Roblox, Numero Membri & Descrizione *</label>
-          <textarea id="orgDesc" placeholder="Descrivi membri, attività in città su Roblox, gestione su Discord e obiettivi..." oninput="updateOrgCmd()"></textarea>
+          <textarea id="orgDesc" placeholder="Descrivi membri, attività in città su Roblox, gestione su Discord e obiettivi..."></textarea>
         </div>
 
         <button class="btn btn-discord" id="orgSubmitBtn" style="width: 100%; justify-content: center;" onclick="submitOrganization()">
-          Invia Richiesta Completa & Copia Comando Bot
+          Invia Richiesta Diretta a Discord & Staff
         </button>
 
-        <div class="cmd-preview" id="orgCmdPreview"></div>
-        <p id="orgConfirmMsg" style="font-size: 0.83rem; color: #34d399; margin-top: 0.6rem; display: none; font-weight: 700;">
-          ✓ Richiesta completa (Discord + Roblox + Bot) inviata all'Area Staff e comando copiato!
+        <p id="orgConfirmMsg" style="font-size: 0.85rem; color: #34d399; margin-top: 0.75rem; display: none; font-weight: 700;">
+          ✓ Richiesta inviata in automatico sul canale Discord dello Staff!
         </p>
       </div>
     </div>
@@ -679,17 +901,56 @@ export default {
     </div>
   </section>
 
-  <!-- AREA STAFF PROTETTA DA PASSWORD -->
+  <!-- FAQ RAPIDE -->
+  <section id="faq">
+    <div class="section-header">
+      <span class="section-tag">Centro Assistenza</span>
+      <h2 class="section-title">Domande Frequenti (FAQ)</h2>
+      <p class="section-sub">Chiarimenti rapidi su accesso al server privato, economia, Bot e organizzazioni.</p>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">
+        <span>Come entro nel server privato di Emergency Hamburg?</span>
+        <span>+</span>
+      </button>
+      <div class="faq-a">
+        Copia il codice del server nella parte alta del sito (es. <strong>ijisma95</strong>), apri Emergency Hamburg su Roblox, entra nella sezione dei server privati e inserisci il codice. Ricordati di unirti anche al Discord ufficiale per ruoli, bandi e comandi.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">
+        <span>Come funzionano gli investimenti e il pagamento settimanale?</span>
+        <span>+</span>
+      </button>
+      <div class="faq-a">
+        Scegli il titolo, controlla la percentuale settimanale e inserisci un importo di almeno <strong>10.000 €</strong>. Il sito calcola subito quanto riceverai a settimana e invia la richiesta allo Staff: quando viene approvata, il Bot attiva l'accredito settimanale sul conto collegato.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">
+        <span>Posso creare sia un'Azienda che una Gang o Mafia?</span>
+        <span>+</span>
+      </button>
+      <div class="faq-a">
+        Sì, nella sezione <strong>Aziende & Gang</strong> puoi scegliere il tab dedicato, compilare i dati Discord e Roblox, indicare il setup di ruoli/canali/conto sul Bot e inviare la richiesta per l'approvazione dello Staff.
+      </div>
+    </div>
+  </section>
+
+  <!-- AREA STAFF -->
   <section id="area-staff">
     <div class="section-header">
       <span class="section-tag" style="color: var(--gold);">Accesso Riservato</span>
       <h2 class="section-title">Area Gestione Staff</h2>
-      <p class="section-sub">Pannello di controllo per Amministratori e Moderatori: pubblica annunci, modifica i codici Roblox/Discord, aggiorna le quotazioni di Borsa e approva investimenti, aziende e gang.</p>
+      <p class="section-sub">Pannello di controllo collegato al Bot su Render e al Webhook Discord.</p>
     </div>
 
     <div class="staff-lock-box" id="staffLockBox">
       <h3>Area Protetta da Password</h3>
-      <p>Inserisci la password di servizio per sbloccare tutti gli strumenti di gestione del server.</p>
+      <p>Inserisci la password di servizio per sbloccare gli strumenti di gestione e approvazione automatica verso il Bot.</p>
       <div class="staff-login-row">
         <input type="password" id="staffPassInput" placeholder="Password Staff..." onkeypress="if(event.key==='Enter') checkStaffPass()" />
         <button class="btn btn-gold" onclick="checkStaffPass()">Sblocca Pannello</button>
@@ -700,14 +961,13 @@ export default {
     <div class="staff-dashboard" id="staffDashboard">
       <div class="staff-dash-header">
         <div>
-          <span class="founder-badge" style="margin-bottom: 0.2rem;">ACCESSO AUTORIZZATO</span>
+          <span class="founder-badge" style="margin-bottom: 0.2rem;">ACCESSO AUTORIZZATO • BOT COLLEGATO</span>
           <h3 style="font-size: 1.4rem;">Centrale Operativa Staff — Rome Italy 2.0 [EH]</h3>
         </div>
         <button class="btn-sm btn-reject" onclick="lockStaff()">Blocca & Esci</button>
       </div>
 
       <div class="staff-grid">
-        <!-- 1. Gestione Annunci & Codici Server -->
         <div class="staff-card">
           <h4>Annunci Live & Codici Server (Game / Discord)</h4>
           <p style="font-size: 0.83rem; color: var(--muted); margin-bottom: 0.9rem;">Aggiorna l'annuncio in cima al sito oppure cambia il codice privato Roblox e il link Discord:</p>
@@ -738,7 +998,6 @@ export default {
           </p>
         </div>
 
-        <!-- 2. Modifica Quotazioni di Borsa -->
         <div class="staff-card">
           <h4>Modifica Quotazioni & Percentuali Borsa</h4>
           <p style="font-size: 0.83rem; color: var(--muted); margin-bottom: 0.9rem;">Modifica il prezzo (€) e la percentuale settimanale (%) dei titoli disponibili:</p>
@@ -751,40 +1010,16 @@ export default {
           </p>
         </div>
 
-        <!-- 3. Approvazione Investimenti Bot -->
         <div class="staff-card">
-          <h4>Accetta Investimenti & Accrediti Settimanali Bot</h4>
-          <p style="font-size: 0.83rem; color: var(--muted); margin-bottom: 0.9rem;">Appena accetti, il Bot invia automaticamente ogni settimana la somma calcolata sul conto:</p>
-          <div id="pendingInvestmentsList">
-            <div class="req-item" id="sampleReq1">
-              <strong>Discord: @Alex_Roma | Roblox: AlexITA09</strong>
-              <div style="font-size: 0.83rem; color: #cbd5e1; margin-top:0.2rem;">Titolo: Immobiliare EUR & Centro (+14%) • Investito: 20.000 €</div>
-              <div style="font-size: 0.83rem; color: #34d399;">Arriva ogni settimana sul conto: +2.800 € / sett.</div>
-              <div class="req-actions">
-                <button class="btn-sm btn-approve" onclick="approveReq('sampleReq1', '@Alex_Roma (AlexITA09)', 2800)">Accetta & Attiva Bot</button>
-                <button class="btn-sm btn-reject" onclick="rejectReq('sampleReq1')">Rifiuta</button>
-              </div>
-            </div>
-          </div>
+          <h4>Accetta Investimenti (Invia Ordine al Bot Render)</h4>
+          <p style="font-size: 0.83rem; color: var(--muted); margin-bottom: 0.9rem;">Cliccando "Accetta & Attiva Bot", il sito manda l'ordine a Render e la conferma su Discord:</p>
+          <div id="pendingInvestmentsList"></div>
         </div>
 
-        <!-- 4. Approvazione Aziende & Gang/Mafie -->
         <div class="staff-card">
-          <h4>Richieste Aziende & Gang / Mafie (Discord + Roblox + Bot)</h4>
-          <p style="font-size: 0.83rem; color: var(--muted); margin-bottom: 0.9rem;">Gestisci le registrazioni complete inviate dai giocatori:</p>
-          <div id="pendingOrgsList">
-            <div class="req-item" id="sampleOrg1">
-              <span class="status-pill pill-free" style="margin-bottom:0.3rem; display:inline-block;">AZIENDA</span>
-              <div><strong>Roma Luxury Motors</strong> (Settore: EUR)</div>
-              <div style="font-size: 0.82rem; color: #cbd5e1;">Discord: @Luca_Boss | Roblox: LucaGamer_RM</div>
-              <div style="font-size: 0.82rem; color: #38bdf8;">Setup Discord/Bot: Ruoli Staff/Venditori, categoria privata, conto aziendale Bot</div>
-              <div style="font-size: 0.8rem; color: var(--muted); margin-top:0.2rem;">Concessionaria auto sportive su Roblox con 5 membri.</div>
-              <div class="req-actions">
-                <button class="btn-sm btn-approve" onclick="approveOrg('sampleOrg1', 'Roma Luxury Motors', '@Luca_Boss')">Approva Pacchetto Completo</button>
-                <button class="btn-sm btn-reject" onclick="rejectReq('sampleOrg1')">Rifiuta</button>
-              </div>
-            </div>
-          </div>
+          <h4>Richieste Aziende & Gang / Mafie</h4>
+          <p style="font-size: 0.83rem; color: var(--muted); margin-bottom: 0.9rem;">Approva le registrazioni inviate dai giocatori:</p>
+          <div id="pendingOrgsList"></div>
         </div>
       </div>
     </div>
@@ -808,11 +1043,13 @@ export default {
 
   <footer>
     <div class="footer-links">
-      <a href="#quartieri">La Città</a>
+      <a href="#quartieri">Quartieri</a>
       <a href="#fazioni">Fazioni</a>
-      <a href="#investimenti">Borsa & Investimenti</a>
+      <a href="#servizi">Servizi RP</a>
+      <a href="#radio">Codici Radio</a>
+      <a href="#investimenti">Borsa</a>
       <a href="#organizzazioni">Aziende & Gang</a>
-      <a href="#regolamento">Regolamento</a>
+      <a href="#faq">FAQ</a>
       <a href="#area-staff">Area Staff</a>
     </div>
     <p>&copy; 2026 Rome Italy 2.0 [EH] — Fondato da Pietro. Tutti i diritti riservati.</p>
@@ -821,8 +1058,8 @@ export default {
 
   <script>
     const MIN_INVESTMENT = 10000;
+    let currentStaffPassword = '';
 
-    // Impostazioni Sito (Annunci & Codici)
     const defaultSettings = {
       annTag: 'COMUNICATO UFFICIALE',
       annText: 'Benvenuti su Rome Italy 2.0 [EH]! Bandi aperti per Carabinieri, Polizia di Stato, Aziende e Organizzazioni.',
@@ -861,7 +1098,6 @@ export default {
       setTimeout(() => { msg.style.display = 'none'; }, 3000);
     }
 
-    // Titoli d'investimento disponibili con percentuale settimanale
     const defaultAssets = [
       { id: 'BTP-RM', name: 'Titoli di Stato Roma', price: 100, rate: 8, trend: '+1.2%', up: true },
       { id: 'EUR-IMM', name: 'Immobiliare EUR & Centro', price: 250, rate: 14, trend: '+3.8%', up: true },
@@ -943,8 +1179,6 @@ export default {
     }
 
     function updateInvest() {
-      const discord = document.getElementById('invDiscord').value.trim() || 'NomeDiscord';
-      const roblox = document.getElementById('invRoblox').value.trim() || 'NomeRoblox';
       const idx = document.getElementById('invAssetSelect').value || 0;
       const asset = assets[idx];
       const amount = parseFloat(document.getElementById('invAmount').value) || 0;
@@ -955,7 +1189,6 @@ export default {
       if (amount < MIN_INVESTMENT) {
         warnEl.style.display = 'block';
         document.getElementById('weeklyReturn').innerText = 'Min. 10.000 €';
-        document.getElementById('botCmdPreview').innerText = 'Inserisci almeno 10.000 € per calcolare la rendita settimanale.';
         return;
       } else {
         warnEl.style.display = 'none';
@@ -963,15 +1196,14 @@ export default {
 
       const weekly = Math.round(amount * (asset.rate / 100));
       document.getElementById('weeklyReturn').innerText = '+' + weekly.toLocaleString('it-IT') + ' € / sett.';
-      document.getElementById('botCmdPreview').innerText = \`/investimento richiedi discord:@\${discord} roblox:\${roblox} titolo:\${asset.id} perc:\${asset.rate}% importo:\${amount} settimanale:\${weekly}\`;
     }
 
-    function submitInvestment() {
+    async function submitInvestment() {
       const discord = document.getElementById('invDiscord').value.trim();
       const roblox = document.getElementById('invRoblox').value.trim();
       const idx = document.getElementById('invAssetSelect').value || 0;
       const asset = assets[idx];
-      const amount = parseFloat(document.getElementById('invAmount').value) || 0;
+      const amount = Math.round(parseFloat(document.getElementById('invAmount').value) || 0);
 
       if (!discord || !roblox) {
         alert('Inserisci obbligatoriamente il tuo Nome Discord Ufficiale e il tuo Username Roblox!');
@@ -982,30 +1214,53 @@ export default {
         return;
       }
 
+      const btn = document.getElementById('invSubmitBtn');
+      btn.disabled = true;
+      btn.innerText = 'Invio in corso a Discord...';
+
       const weekly = Math.round(amount * (asset.rate / 100));
-      const cmd = document.getElementById('botCmdPreview').innerText;
 
-      navigator.clipboard.writeText(cmd);
-      document.getElementById('invConfirmMsg').style.display = 'block';
+      try {
+        await fetch('/api/richiesta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipo: 'INVESTIMENTO',
+            discord,
+            roblox,
+            titoloId: asset.id,
+            titoloNome: asset.name,
+            perc: asset.rate,
+            importo: amount,
+            settimanale: weekly
+          })
+        });
 
-      const list = document.getElementById('pendingInvestmentsList');
-      const reqId = 'req_' + Date.now();
-      const item = document.createElement('div');
-      item.className = 'req-item';
-      item.id = reqId;
-      item.innerHTML = \`
-        <strong>Discord: @\${discord} | Roblox: \${roblox}</strong>
-        <div style="font-size: 0.83rem; color: #cbd5e1; margin-top:0.2rem;">Titolo: \${asset.name} (+\${asset.rate}%) • Investito: \${amount.toLocaleString('it-IT')} €</div>
-        <div style="font-size: 0.83rem; color: #34d399;">Arriva ogni settimana sul conto: +\${weekly.toLocaleString('it-IT')} € / sett.</div>
-        <div class="req-actions">
-          <button class="btn-sm btn-approve" onclick="approveReq('\${reqId}', '@\${discord} (\${roblox})', \${weekly})">Accetta & Attiva Bot</button>
-          <button class="btn-sm btn-reject" onclick="rejectReq('\${reqId}')">Rifiuta</button>
-        </div>
-      \`;
-      list.prepend(item);
+        document.getElementById('invConfirmMsg').style.display = 'block';
+
+        const list = document.getElementById('pendingInvestmentsList');
+        const reqId = 'req_' + Date.now();
+        const item = document.createElement('div');
+        item.className = 'req-item';
+        item.id = reqId;
+        item.innerHTML = \`
+          <strong>Discord: @\${discord} | Roblox: \${roblox}</strong>
+          <div style="font-size: 0.83rem; color: #cbd5e1; margin-top:0.2rem;">Titolo: \${asset.name} (+\${asset.rate}%) • Investito: \${amount.toLocaleString('it-IT')} €</div>
+          <div style="font-size: 0.83rem; color: #34d399;">Arriva ogni settimana sul conto: +\${weekly.toLocaleString('it-IT')} € / sett.</div>
+          <div class="req-actions">
+            <button class="btn-sm btn-approve" onclick="approveReq('\${reqId}', '\${discord}', '\${roblox}', '\${asset.name}', \${amount}, \${weekly})">Accetta & Attiva Bot</button>
+            <button class="btn-sm btn-reject" onclick="rejectReq('\${reqId}')">Rifiuta</button>
+          </div>
+        \`;
+        list.prepend(item);
+      } catch (e) {
+        alert('Errore durante invio a Discord: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Invia Richiesta al Server & Bot';
+      }
     }
 
-    // Gestione Aziende & Gang/Mafia (Discord + Roblox + Bot)
     let currentOrgType = 'AZIENDA';
 
     function switchOrgType(type) {
@@ -1041,19 +1296,9 @@ export default {
         document.getElementById('orgDiscordSetup').placeholder = 'es. Gradi Boss/Soldati, chat vocale/testo clan, cassa Bot';
         btn.className = 'btn btn-purple';
       }
-      updateOrgCmd();
     }
 
-    function updateOrgCmd() {
-      const discord = document.getElementById('orgDiscord').value.trim() || 'NomeDiscord';
-      const roblox = document.getElementById('orgRoblox').value.trim() || 'NomeRoblox';
-      const name = document.getElementById('orgName').value.trim() || 'NomeProgetto';
-      const sector = document.getElementById('orgSector').value.trim() || 'Zona';
-      const setup = document.getElementById('orgDiscordSetup').value.trim() || 'Ruoli+Canali+ContoBot';
-      document.getElementById('orgCmdPreview').innerText = \`/registra-org tipo:"\${currentOrgType}" nome:"\${name}" zona:"\${sector}" discord_bot:"\${setup}" capo_discord:@\${discord} capo_roblox:\${roblox}\`;
-    }
-
-    function submitOrganization() {
+    async function submitOrganization() {
       const discord = document.getElementById('orgDiscord').value.trim();
       const roblox = document.getElementById('orgRoblox').value.trim();
       const name = document.getElementById('orgName').value.trim();
@@ -1066,28 +1311,60 @@ export default {
         return;
       }
 
-      const cmd = document.getElementById('orgCmdPreview').innerText;
-      navigator.clipboard.writeText(cmd);
-      document.getElementById('orgConfirmMsg').style.display = 'block';
+      const btn = document.getElementById('orgSubmitBtn');
+      btn.disabled = true;
+      btn.innerText = 'Invio a Discord in corso...';
 
-      const list = document.getElementById('pendingOrgsList');
-      const orgId = 'org_' + Date.now();
-      const pillClass = currentOrgType === 'AZIENDA' ? 'pill-free' : 'pill-danger';
-      const item = document.createElement('div');
-      item.className = 'req-item';
-      item.id = orgId;
-      item.innerHTML = \`
-        <span class="status-pill \${pillClass}" style="margin-bottom:0.3rem; display:inline-block;">\${currentOrgType} • FULL</span>
-        <div><strong>\${name}</strong> (Roblox/Zona: \${sector})</div>
-        <div style="font-size: 0.82rem; color: #cbd5e1;">Discord: @\${discord} | Roblox: \${roblox}</div>
-        <div style="font-size: 0.82rem; color: #38bdf8;">Discord & Bot: \${setup}</div>
-        <div style="font-size: 0.8rem; color: var(--muted); margin-top:0.2rem;">\${desc || 'Nessuna descrizione aggiuntiva.'}</div>
-        <div class="req-actions">
-          <button class="btn-sm btn-approve" onclick="approveOrg('\${orgId}', '\${name}', '@\${discord}')">Approva Pacchetto Completo</button>
-          <button class="btn-sm btn-reject" onclick="rejectReq('\${orgId}')">Rifiuta</button>
-        </div>
-      \`;
-      list.prepend(item);
+      try {
+        await fetch('/api/richiesta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipo: 'ORGANIZZAZIONE',
+            orgTipo: currentOrgType,
+            discord,
+            roblox,
+            nome: name,
+            zona: sector,
+            setup,
+            desc
+          })
+        });
+
+        document.getElementById('orgConfirmMsg').style.display = 'block';
+
+        const list = document.getElementById('pendingOrgsList');
+        const orgId = 'org_' + Date.now();
+        const pillClass = currentOrgType === 'AZIENDA' ? 'pill-free' : 'pill-danger';
+        const item = document.createElement('div');
+        item.className = 'req-item';
+        item.id = orgId;
+        item.innerHTML = \`
+          <span class="status-pill \${pillClass}" style="margin-bottom:0.3rem; display:inline-block;">\${currentOrgType} • FULL</span>
+          <div><strong>\${name}</strong> (Roblox/Zona: \${sector})</div>
+          <div style="font-size: 0.82rem; color: #cbd5e1;">Discord: @\${discord} | Roblox: \${roblox}</div>
+          <div style="font-size: 0.82rem; color: #38bdf8;">Discord & Bot: \${setup}</div>
+          <div style="font-size: 0.8rem; color: var(--muted); margin-top:0.2rem;">\${desc || 'Nessuna descrizione aggiuntiva.'}</div>
+          <div class="req-actions">
+            <button class="btn-sm btn-approve" onclick="approveOrg('\${orgId}', '\${name}', '\${discord}', '\${roblox}')">Approva & Invia al Bot</button>
+            <button class="btn-sm btn-reject" onclick="rejectReq('\${orgId}')">Rifiuta</button>
+          </div>
+        \`;
+        list.prepend(item);
+      } catch (e) {
+        alert('Errore durante invio: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Invia Richiesta Diretta a Discord & Staff';
+      }
+    }
+
+    function toggleFaq(btn) {
+      const answer = btn.nextElementSibling;
+      const sign = btn.querySelector('span:last-child');
+      const isOpen = answer.style.display === 'block';
+      answer.style.display = isOpen ? 'none' : 'block';
+      sign.innerText = isOpen ? '+' : '-';
     }
 
     function copyCode() {
@@ -1106,6 +1383,7 @@ export default {
     function checkStaffPass() {
       const pass = document.getElementById('staffPassInput').value;
       if (pass === 'STAFF26ROME') {
+        currentStaffPassword = pass;
         document.getElementById('staffLockBox').style.display = 'none';
         document.getElementById('staffDashboard').style.display = 'block';
         document.getElementById('staffError').style.display = 'none';
@@ -1115,25 +1393,63 @@ export default {
     }
 
     function lockStaff() {
+      currentStaffPassword = '';
       document.getElementById('staffPassInput').value = '';
       document.getElementById('staffLockBox').style.display = 'block';
       document.getElementById('staffDashboard').style.display = 'none';
     }
 
-    function approveReq(id, user, weekly) {
+    async function approveReq(id, discord, roblox, titolo, importo, weekly) {
       const el = document.getElementById(id);
-      if (el) {
-        el.innerHTML = \`<strong style="color:#34d399;">✓ ACCETTATO: \${user}</strong>\` +
-          \`<div style="font-size: 0.82rem; color: #34d399;">Trasferimento automatico Bot attivo: +\${weekly.toLocaleString('it-IT')} € ogni 7 giorni sul conto.</div>\`;
-      }
+      if (!el) return;
+      el.innerHTML = '<span style="color:#fbbf24;">Invio comando di accredito settimanale al Bot su Render...</span>';
+
+      const res = await fetch('/api/approva', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staffPassword: currentStaffPassword,
+          payload: {
+            azione: 'ATTIVA_INVESTIMENTO',
+            discord,
+            roblox,
+            titolo,
+            importo,
+            settimanale: weekly
+          }
+        })
+      });
+      const data = await res.json();
+      const botStatus = data.botOk
+        ? \`<span style="color:#34d399;">✓ Bot Render sincronizzato</span>\`
+        : \`<span style="color:#fbbf24;">⚠ Conferma inviata su Discord (\${data.botMessage || 'verifica bot Render'})</span>\`;
+
+      el.innerHTML = \`<strong style="color:#34d399;">✓ ACCETTATO: @\${discord} (\${roblox})</strong>\` +
+        \`<div style="font-size: 0.82rem; color: #34d399;">Accredito settimanale attivo: +\${weekly.toLocaleString('it-IT')} € ogni 7 giorni.</div>\` +
+        \`<div style="font-size: 0.78rem; margin-top:0.25rem;">\${botStatus}</div>\`;
     }
 
-    function approveOrg(id, orgName, leader) {
+    async function approveOrg(id, orgName, discord, roblox) {
       const el = document.getElementById(id);
-      if (el) {
-        el.innerHTML = \`<strong style="color:#34d399;">✓ APPROVATO: \${orgName}</strong>\` +
-          \`<div style="font-size: 0.82rem; color: var(--muted);">Attivato per \${leader}: ruoli & canali Discord, conto/cassa Bot e attività Roblox.</div>\`;
-      }
+      if (!el) return;
+      el.innerHTML = '<span style="color:#fbbf24;">Invio conferma a Discord & Bot...</span>';
+
+      await fetch('/api/approva', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staffPassword: currentStaffPassword,
+          payload: {
+            azione: 'ATTIVA_ORGANIZZAZIONE',
+            nome: orgName,
+            discord,
+            roblox
+          }
+        })
+      });
+
+      el.innerHTML = \`<strong style="color:#34d399;">✓ APPROVATO: \${orgName}</strong>\` +
+        \`<div style="font-size: 0.82rem; color: var(--muted);">Conferma inviata a Discord & Bot per @\${discord} (\${roblox}).</div>\`;
     }
 
     function rejectReq(id) {
@@ -1143,7 +1459,6 @@ export default {
 
     applySiteSettings();
     renderMarket();
-    updateOrgCmd();
   </script>
 </body>
 </html>`;
