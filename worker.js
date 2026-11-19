@@ -21,6 +21,7 @@ export default {
             fields: [
               { name: "Discord", value: `@${data.discord}`, inline: true },
               { name: "Roblox", value: data.roblox, inline: true },
+              { name: "Requisito Conto Discord", value: "✓ Conto aperto confermato (min. 10.000 € sul conto)", inline: false },
               { name: "Titolo Scelto", value: `${data.titoloNome} (${data.titoloId})`, inline: false },
               { name: "Capitale Investito", value: `${Number(data.importo).toLocaleString("it-IT")} €`, inline: true },
               { name: "Percentuale", value: `+${data.perc}% / sett.`, inline: true },
@@ -273,7 +274,6 @@ export default {
     .card p { color: var(--muted); font-size: 0.91rem; margin: 0.5rem 0 1rem; }
     .card-footer { font-size: 0.82rem; color: #cbd5e1; font-weight: 600; border-top: 1px solid var(--border); padding-top: 0.7rem; }
 
-    /* Tabella Codici Radio & Economia */
     .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
     table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
     th, td { padding: 0.95rem 1.15rem; border-bottom: 1px solid var(--border); }
@@ -320,6 +320,33 @@ export default {
     }
     .form-group textarea { resize: vertical; min-height: 75px; }
 
+    .checkbox-req {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 0.95rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+    }
+    .checkbox-req input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-top: 0.15rem;
+      accent-color: var(--gold);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .checkbox-req label {
+      font-size: 0.84rem;
+      color: #fde68a;
+      font-weight: 700;
+      cursor: pointer;
+      line-height: 1.4;
+      margin: 0;
+    }
+
     .selected-rate-banner {
       background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.35);
       border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 0.9rem;
@@ -356,7 +383,6 @@ export default {
     .rule-item strong { display: block; margin-bottom: 0.25rem; font-size: 1.03rem; color: #fff; }
     .rule-item span { color: var(--muted); font-size: 0.92rem; }
 
-    /* FAQ Accordion */
     .faq-item {
       background: var(--card); border: 1px solid var(--border); border-radius: 10px;
       margin-bottom: 0.8rem; overflow: hidden;
@@ -495,8 +521,8 @@ export default {
         <span>Codice Privato EH</span>
       </div>
       <div class="stat">
-        <h4>Minimo 10.000 €</h4>
-        <span>Investimenti & Resa Auto</span>
+        <h4>Conto + Min. 10.000 €</h4>
+        <span>Obbligatorio per Investire</span>
       </div>
       <div class="stat">
         <h4>7.000 € / 13.000 €</h4>
@@ -610,7 +636,7 @@ export default {
             <h3>Civili, Imprenditori & Clan</h3>
             <span class="status-pill pill-free">Accesso Libero</span>
           </div>
-          <p>Investi in Borsa (minimo 10.000 €), fonda una tua azienda registrata oppure crea un'organizzazione criminale rispettando il regolamento RP.</p>
+          <p>Investi in Borsa (conto Discord aperto + almeno 10.000 €), fonda una tua azienda registrata oppure crea un'organizzazione criminale rispettando il regolamento RP.</p>
         </div>
         <div class="card-footer">Economia: Borsa, Aziende & Conti Bot</div>
       </div>
@@ -712,7 +738,7 @@ export default {
     <div class="section-header">
       <span class="section-tag">Collegamento Diretto Discord + Bot Economia</span>
       <h2 class="section-title">Mercati, Quotazioni & Investimenti Bot</h2>
-      <p class="section-sub">Inserisci Nome Discord e Roblox, scegli un titolo tra quelli disponibili, visualizza la percentuale settimanale e imposta il tuo investimento (minimo <strong>10.000 €</strong>): la richiesta arriva subito su Discord e, appena accettata dallo Staff, il Bot ti accredita ogni settimana l'importo nel conto.</p>
+      <p class="section-sub">Per investire è <strong>obbligatorio avere un conto aperto sul server Discord</strong> e avere <strong>almeno 10.000 € sul conto</strong>. Scegli un titolo, visualizza la percentuale settimanale e invia la richiesta: appena accettata dallo Staff, il Bot ti accredita ogni settimana l'importo nel conto.</p>
     </div>
 
     <div class="market-grid" id="marketTickerGrid"></div>
@@ -720,16 +746,16 @@ export default {
     <div class="split-panel">
       <div>
         <span class="status-pill pill-open" style="margin-bottom:0.8rem; display:inline-block;">● COLLEGATO AL BOT SU RENDER</span>
-        <h3 style="font-size: 1.5rem; margin-bottom: 0.7rem;">Come funziona l'investimento (Minimo 10.000 €)</h3>
-        <p style="color: var(--muted); font-size: 0.95rem; margin-bottom: 1.2rem;">Invii la richiesta dal modulo, arriva subito sul canale Discord dello Staff, e al clic su <strong>Accetta & Attiva Bot</strong> il tuo bot su Render riceve l'ordine di accreditare ogni settimana la rendita sul conto.</p>
+        <h3 style="font-size: 1.5rem; margin-bottom: 0.7rem;">Requisiti Obbligatori per Investire</h3>
+        <p style="color: var(--muted); font-size: 0.95rem; margin-bottom: 1.2rem;">Prima di inviare la richiesta dal modulo, devi avere il conto attivo sul server Discord e almeno <strong>10.000 €</strong> disponibili sul tuo conto.</p>
         <div class="rules-list">
-          <div class="rule-item" style="border-left-color: var(--green);">
-            <strong>1. Nome Discord, Roblox & Scelta Titolo</strong>
-            <span>Inserisci i tuoi dati ufficiali e scegli il titolo d'investimento: vedrai subito la percentuale settimanale assegnata.</span>
+          <div class="rule-item" style="border-left-color: var(--gold);">
+            <strong>1. Conto Aperto su Discord Obbligatorio</strong>
+            <span>Devi aver già aperto un conto sul server Discord ufficiale tramite il Bot prima di richiedere qualsiasi investimento.</span>
           </div>
-          <div class="rule-item" style="border-left-color: var(--green);">
-            <strong>2. Importo Minimo 10.000 € (10k)</strong>
-            <span>Inserisci quanto vuoi investire (almeno 10.000 €): il sistema calcola in tempo reale quanto ti spetta ogni settimana.</span>
+          <div class="rule-item" style="border-left-color: var(--gold);">
+            <strong>2. Almeno 10.000 € sul Conto & Investimento</strong>
+            <span>È obbligatorio avere almeno <strong>10.000 €</strong> sul conto e investire almeno <strong>10.000 €</strong> sul titolo scelto.</span>
           </div>
           <div class="rule-item" style="border-left-color: var(--green);">
             <strong>3. Invio Automatico a Discord & Bot</strong>
@@ -739,7 +765,7 @@ export default {
       </div>
 
       <div class="form-box">
-        <h3>Modulo Investimento Diretto (Min. 10.000 €)</h3>
+        <h3>Modulo Investimento Diretto (Conto Discord + Min. 10.000 €)</h3>
         <div class="form-row-2">
           <div class="form-group">
             <label>Nome Discord Ufficiale *</label>
@@ -765,6 +791,11 @@ export default {
           <label>Quanto vuoi investire? (Minimo 10.000 €) *</label>
           <input type="number" id="invAmount" value="10000" min="10000" step="500" oninput="updateInvest()" />
           <div class="min-warning" id="minInvestWarning">⚠ L'investimento minimo è di 10.000 €! Inserisci almeno 10.000 €.</div>
+        </div>
+
+        <div class="checkbox-req">
+          <input type="checkbox" id="invAccountCheck" />
+          <label for="invAccountCheck">Dichiaro di avere un <strong>conto aperto sul server Discord</strong> e di avere <strong>almeno 10.000 € sul conto</strong> per coprire l'investimento (obbligatorio).</label>
         </div>
 
         <div class="payout-box">
@@ -891,8 +922,8 @@ export default {
         <span>Ogni organizzazione deve essere registrata con dati Discord e Roblox reali e approvata dallo Staff. Vietato fare guerre tra clan senza motivi RP validi.</span>
       </div>
       <div class="rule-item">
-        <strong>4. Investimenti (Minimo 10.000 €) & Bot</strong>
-        <span>L'investimento minimo è di 10.000 €. Le rendite settimanali automatiche del Bot vengono attivate solo su investimenti accettati dallo Staff.</span>
+        <strong>4. Investimenti: Conto Discord Aperto & Minimo 10.000 €</strong>
+        <span>È obbligatorio avere un conto aperto sul server Discord e avere almeno <strong>10.000 €</strong> sul conto (investimento minimo 10.000 €). Le rendite settimanali automatiche del Bot vengono attivate solo su investimenti accettati dallo Staff.</span>
       </div>
       <div class="rule-item">
         <strong>5. Rispetto verso Staff e Giocatori</strong>
@@ -921,11 +952,11 @@ export default {
 
     <div class="faq-item">
       <button class="faq-q" onclick="toggleFaq(this)">
-        <span>Come funzionano gli investimenti e il pagamento settimanale?</span>
+        <span>Cosa serve per investire e come funziona il pagamento settimanale?</span>
         <span>+</span>
       </button>
       <div class="faq-a">
-        Scegli il titolo, controlla la percentuale settimanale e inserisci un importo di almeno <strong>10.000 €</strong>. Il sito calcola subito quanto riceverai a settimana e invia la richiesta allo Staff: quando viene approvata, il Bot attiva l'accredito settimanale sul conto collegato.
+        È obbligatorio avere un <strong>conto aperto sul server Discord</strong> e avere <strong>almeno 10.000 € sul conto</strong> (investimento minimo 10.000 €). Scegli il titolo, controlla la percentuale settimanale e invia la richiesta: quando viene approvata dallo Staff, il Bot attiva l'accredito settimanale sul tuo conto.
       </div>
     </div>
 
@@ -1204,13 +1235,18 @@ export default {
       const idx = document.getElementById('invAssetSelect').value || 0;
       const asset = assets[idx];
       const amount = Math.round(parseFloat(document.getElementById('invAmount').value) || 0);
+      const hasAccount = document.getElementById('invAccountCheck').checked;
 
       if (!discord || !roblox) {
         alert('Inserisci obbligatoriamente il tuo Nome Discord Ufficiale e il tuo Username Roblox!');
         return;
       }
+      if (!hasAccount) {
+        alert('È obbligatorio avere un conto aperto sul server Discord e avere almeno 10.000 € sul conto per investire!');
+        return;
+      }
       if (amount < MIN_INVESTMENT) {
-        alert("L'importo minimo per investire è di 10.000 €!");
+        alert("L'importo minimo per investire e avere sul conto è di 10.000 €!");
         return;
       }
 
@@ -1245,6 +1281,7 @@ export default {
         item.id = reqId;
         item.innerHTML = \`
           <strong>Discord: @\${discord} | Roblox: \${roblox}</strong>
+          <div style="font-size: 0.8rem; color: #fde68a;">✓ Conto Discord confermato (min. 10.000 € sul conto)</div>
           <div style="font-size: 0.83rem; color: #cbd5e1; margin-top:0.2rem;">Titolo: \${asset.name} (+\${asset.rate}%) • Investito: \${amount.toLocaleString('it-IT')} €</div>
           <div style="font-size: 0.83rem; color: #34d399;">Arriva ogni settimana sul conto: +\${weekly.toLocaleString('it-IT')} € / sett.</div>
           <div class="req-actions">
